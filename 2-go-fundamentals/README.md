@@ -1,1 +1,1 @@
-# A2SV-project-phase-backend-track-tasks
+# Palindrome & Word frequency
