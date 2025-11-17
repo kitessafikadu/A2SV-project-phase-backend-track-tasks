@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"library_management/models"
+	"concurrent-book-reservation/models"
 )
 
 // LibraryManager defines the public API.

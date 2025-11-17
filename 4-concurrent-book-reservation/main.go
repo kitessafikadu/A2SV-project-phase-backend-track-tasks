@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"library_management/controllers"
-	"library_management/models"
-	"library_management/services"
+	"concurrent-book-reservation/controllers"
+	"concurrent-book-reservation/models"
+	"concurrent-book-reservation/services"
 	"time"
 )
 

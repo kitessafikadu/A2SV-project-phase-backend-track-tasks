@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"fmt"
-	"library_management/services"
+	"concurrent-book-reservation/services"
 	"time"
 )
 
