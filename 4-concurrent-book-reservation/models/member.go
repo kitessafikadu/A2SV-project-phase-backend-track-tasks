@@ -1,6 +1,6 @@
-package main
+package models
 
-type Member struct{
-	ID int
-	
+type Member struct {
+	ID   int
+	Name string
 }
