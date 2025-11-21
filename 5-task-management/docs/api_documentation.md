@@ -97,7 +97,7 @@ curl -X DELETE http://localhost:8080/tasks/1
 ## go.mod
 
 ```text
-module task_manager
+module task-management
 
 go 1.20
 
@@ -123,5 +123,3 @@ go run main.go
 ```
 
 Server will start at [http://localhost:8080](http://localhost:8080)
-
-Open `docs/api_documentation.md` for Postman examples and payloads.
