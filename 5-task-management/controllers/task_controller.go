@@ -9,7 +9,7 @@ import (
 
 "github.com/gin-gonic/gin"
 "task-management/data"
-"task_manager/models"
+"task-management/models"
 )
 
 
