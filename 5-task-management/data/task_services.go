@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"task_manager/models"
+	"task-management/models"
 )
 
 
