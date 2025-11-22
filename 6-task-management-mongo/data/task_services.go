@@ -1,33 +1,29 @@
 package data
 
 import (
+	"context"
 	"errors"
-	"sync"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"task-management/models"
 )
 
 var (
 	ErrNotFound    = errors.New("task not found")
-	ErrInvalidDate = errors.New("invalid date format, use RFC3339 (e.g. 2006-01-02T15:04:05Z07:00)")
+	ErrInvalidDate = errors.New("invalid date format, use RFC3339")
 )
 
-// taskService holds in-memory tasks and sync primitives
-type taskService struct {
-	mu    sync.RWMutex
-	tasks map[int]models.Task
-	next  int
+var taskCollection *mongo.Collection
+
+func InitMongo(client *mongo.Client) {
+	taskCollection = client.Database("taskdb").Collection("tasks")
 }
 
-var svc = &taskService{
-	tasks: make(map[int]models.Task),
-	next:  1,
-}
-
-// CreateTask creates a new task from TaskInput
 func CreateTask(input models.TaskInput) (models.Task, error) {
-	var due time.Time
+	due := time.Time{}
 	var err error
 	if input.DueDate != "" {
 		due, err = time.Parse(time.RFC3339, input.DueDate)
@@ -36,50 +32,62 @@ func CreateTask(input models.TaskInput) (models.Task, error) {
 		}
 	}
 
-	svc.mu.Lock()
-	defer svc.mu.Unlock()
-
 	t := models.Task{
-		ID:          svc.next,
+		ID:          primitive.NewObjectID(),
 		Title:       input.Title,
 		Description: input.Description,
 		DueDate:     due,
 		Status:      input.Status,
 	}
 
-	svc.tasks[svc.next] = t
-	svc.next++
+	_, err = taskCollection.InsertOne(context.Background(), t)
+	if err != nil {
+		return models.Task{}, err
+	}
+
 	return t, nil
 }
 
-// GetAllTasks returns a slice of all tasks
-func GetAllTasks() []models.Task {
-	svc.mu.RLock()
-	defer svc.mu.RUnlock()
-
-	out := make([]models.Task, 0, len(svc.tasks))
-	for _, t := range svc.tasks {
-		out = append(out, t)
+func GetAllTasks() ([]models.Task, error) {
+	cur, err := taskCollection.Find(context.Background(), bson.M{})
+	if err != nil {
+		return nil, err
 	}
-	return out
+	defer cur.Close(context.Background())
+
+	var tasks []models.Task
+	for cur.Next(context.Background()) {
+		var t models.Task
+		if err := cur.Decode(&t); err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, nil
 }
 
-// GetTask returns a task by id
-func GetTask(id int) (models.Task, error) {
-	svc.mu.RLock()
-	defer svc.mu.RUnlock()
-
-	t, ok := svc.tasks[id]
-	if !ok {
+func GetTask(id string) (models.Task, error) {
+	oid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
 		return models.Task{}, ErrNotFound
 	}
-	return t, nil
+
+	var task models.Task
+	err = taskCollection.FindOne(context.Background(), bson.M{"_id": oid}).Decode(&task)
+	if err == mongo.ErrNoDocuments {
+		return models.Task{}, ErrNotFound
+	}
+
+	return task, nil
 }
 
-// UpdateTask updates a task with new data
-func UpdateTask(id int, input models.TaskInput) (models.Task, error) {
-	var due time.Time
-	var err error
+func UpdateTask(id string, input models.TaskInput) (models.Task, error) {
+	oid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return models.Task{}, ErrNotFound
+	}
+
+	due := time.Time{}
 	if input.DueDate != "" {
 		due, err = time.Parse(time.RFC3339, input.DueDate)
 		if err != nil {
@@ -87,40 +95,32 @@ func UpdateTask(id int, input models.TaskInput) (models.Task, error) {
 		}
 	}
 
-	svc.mu.Lock()
-	defer svc.mu.Unlock()
+	update := bson.M{
+		"$set": bson.M{
+			"title":       input.Title,
+			"description": input.Description,
+			"status":      input.Status,
+			"due_date":    due,
+		},
+	}
 
-	t, ok := svc.tasks[id]
-	if !ok {
+	_, err = taskCollection.UpdateOne(context.Background(), bson.M{"_id": oid}, update)
+	if err != nil {
 		return models.Task{}, ErrNotFound
 	}
 
-	t.Title = input.Title
-	t.Description = input.Description
-	if !due.IsZero() {
-		t.DueDate = due
-	} else {
-		// if empty string passed, zero time will remain — keep existing
-		if input.DueDate == "" {
-			// preserve existing due date
-		} else {
-			t.DueDate = time.Time{}
-		}
-	}
-	t.Status = input.Status
-
-	svc.tasks[id] = t
-	return t, nil
+	return GetTask(id)
 }
 
-// DeleteTask removes a task by id
-func DeleteTask(id int) error {
-	svc.mu.Lock()
-	defer svc.mu.Unlock()
-
-	if _, ok := svc.tasks[id]; !ok {
+func DeleteTask(id string) error {
+	oid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
 		return ErrNotFound
 	}
-	delete(svc.tasks, id)
+
+	res, err := taskCollection.DeleteOne(context.Background(), bson.M{"_id": oid})
+	if res.DeletedCount == 0 {
+		return ErrNotFound
+	}
 	return nil
 }

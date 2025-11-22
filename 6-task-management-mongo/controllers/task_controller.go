@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,18 +11,17 @@ import (
 
 // GetTasks handles GET /tasks
 func GetTasks(c *gin.Context) {
-	tasks := data.GetAllTasks()
+	tasks, err := data.GetAllTasks()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not fetch tasks"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"tasks": tasks})
 }
 
 // GetTaskByID handles GET /tasks/:id
 func GetTaskByID(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
+	id := c.Param("id")
 
 	t, err := data.GetTask(id)
 	if err != nil {
@@ -63,12 +61,7 @@ func CreateTaskHandler(c *gin.Context) {
 
 // UpdateTaskHandler handles PUT /tasks/:id
 func UpdateTaskHandler(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
+	id := c.Param("id")
 
 	var input models.TaskInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -76,7 +69,7 @@ func UpdateTaskHandler(c *gin.Context) {
 		return
 	}
 
-	// If due date provided, validate
+	// Validate due date format
 	if input.DueDate != "" {
 		if _, err := time.Parse(time.RFC3339, input.DueDate); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid due_date format, use RFC3339"})
@@ -102,12 +95,7 @@ func UpdateTaskHandler(c *gin.Context) {
 
 // DeleteTaskHandler handles DELETE /tasks/:id
 func DeleteTaskHandler(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
+	id := c.Param("id")
 
 	if err := data.DeleteTask(id); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
